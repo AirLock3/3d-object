@@ -1,0 +1,2875 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>ПЗУ 3D — Интерактивный генеральный план НСЗ/02/08-25ПД-ПЗУ</title>
+  <meta name="description" content="Интерактивный 3D-макет и ГИС-визуализация разбивочного плана площадки производства «Сибирит» и склада ВМ (Забайкальский край, уч. 75:18:570101:208) на базе Three.js." />
+  <meta property="og:title" content="ПЗУ 3D — Интерактивный генеральный план НСЗ/02/08-25ПД-ПЗУ" />
+  <meta property="og:description" content="Интерактивный 3D-макет и ГИС-визуализация разбивочного плана площадки производства «Сибирит» и склада ВМ (Забайкальский край, уч. 75:18:570101:208) на базе Three.js." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Подключение Three.js через CDN (cdnjs + автоматический резерв jsdelivr / unpkg) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (typeof window.THREE === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" crossorigin="anonymous"><\/script>');
+    }
+  </script>
+  <script>
+    if (typeof window.THREE === 'undefined') {
+      document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js" crossorigin="anonymous"><\/script>');
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg-canvas: #0d131c;
+      --panel-bg: rgba(15, 23, 36, 0.95);
+      --panel-bg-elevated: #141e30;
+      --border-subtle: rgba(148, 163, 184, 0.24);
+      --border-accent: rgba(56, 189, 248, 0.55);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --accent-sky: #0284c7;
+      --accent-sky-bright: #38bdf8;
+      --accent-amber: #f59e0b;
+      --accent-rose: #ef4444;
+      --accent-emerald: #10b981;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      user-select: none;
+      -webkit-user-select: none;
+      overscroll-behavior: none;
+    }
+
+    /* Полноэкранный 3D WebGL холст с поддержкой мультитач-жестов на смартфонах */
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    #canvas-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
+      outline: none;
+    }
+
+    /* Верхний левый информационный штамп ПЗУ */
+    .header-badge {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 15;
+      max-width: 440px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px 15px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+    }
+
+    .header-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+
+    .header-cadastre {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-amber);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .header-subtitle {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      line-height: 1.38;
+    }
+
+    .legend-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .legend-line {
+      width: 12px;
+      height: 3.5px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .legend-sep {
+      color: #475569;
+    }
+
+    /* Интерактивная карточка выбранного сооружения (HTML/CSS тултип) */
+    .tooltip-card {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 20;
+      width: 390px;
+      max-width: calc(100vw - 28px);
+      background: var(--panel-bg);
+      border: 1px solid var(--border-accent);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.6);
+      pointer-events: auto;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .tooltip-card.hidden {
+      display: none;
+    }
+
+    .tt-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .tt-code-badge {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent-amber);
+    }
+
+    .tt-tag-highlight {
+      color: var(--accent-sky-bright);
+    }
+
+    .tt-nav-btns {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .icon-btn:hover {
+      background: #1e293b;
+      color: #ffffff;
+      border-color: var(--accent-sky-bright);
+    }
+
+    .tt-building-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 6px;
+      line-height: 1.3;
+    }
+
+    .tt-specs-box {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--accent-sky-bright);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .tt-elev-line {
+      color: var(--text-secondary);
+    }
+
+    .tt-purpose {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .tt-quick-jump {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .tt-quick-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .tt-quick-list {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip-btn {
+      background: #1e293b;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      padding: 4px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .chip-btn:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+
+    .chip-btn.active {
+      background: var(--accent-sky);
+      border-color: var(--accent-sky-bright);
+      color: #ffffff;
+    }
+
+    /* Нижняя единая сворачиваемая док-панель управления */
+    .bottom-dock-wrapper {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      width: min(1040px, calc(100vw - 20px));
+      transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto;
+    }
+
+    .bottom-dock-wrapper.collapsed {
+      transform: translate(-50%, calc(100% + 14px));
+    }
+
+    .dock-collapse-handle {
+      position: absolute;
+      top: -29px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel-bg);
+      border: 1px solid var(--border-subtle);
+      border-bottom: none;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 9px 9px 0 0;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dock-collapse-handle:hover {
+      color: #ffffff;
+    }
+
+    .bottom-dock {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.65);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 10px;
+    }
+
+    .dock-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .dock-btn {
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .dock-btn:hover {
+      background: #1e293b;
+      border-color: #64748b;
+    }
+
+    .dock-btn.active {
+      background: var(--accent-sky);
+      border-color: var(--accent-sky-bright);
+      color: #ffffff;
+    }
+
+    .dock-btn.tour-active {
+      background: #d97706;
+      border-color: #fbbf24;
+      color: #ffffff;
+    }
+
+    .dock-btn.layer-on {
+      background: rgba(15, 23, 42, 0.95);
+      border-color: rgba(56, 189, 248, 0.55);
+      color: #7dd3fc;
+    }
+
+    .dock-btn.danger-on {
+      background: rgba(15, 23, 42, 0.95);
+      border-color: rgba(244, 63, 94, 0.55);
+      color: #fda4af;
+    }
+
+    .dock-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dock-select-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .dock-select {
+      background: #0f172a;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 10px;
+      border-radius: 8px;
+      max-width: 240px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .dock-select:focus {
+      border-color: var(--accent-sky-bright);
+    }
+
+    /* Модальное окно экспликации и конструктивных сечений */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(5, 10, 18, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      pointer-events: auto;
+    }
+
+    .modal-backdrop.hidden {
+      display: none;
+    }
+
+    .modal-window {
+      width: 100%;
+      max-width: 920px;
+      max-height: 86vh;
+      max-height: 86dvh;
+      background: #111927;
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #0c121d;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .modal-subtitle {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .modal-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: #0f1623;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      overflow-x: auto;
+    }
+
+    .modal-body {
+      padding: 18px 20px;
+      overflow-y: auto;
+    }
+
+    .explication-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    .explication-table th {
+      background: #0b111b;
+      color: var(--text-secondary);
+      padding: 9px 10px;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      white-space: nowrap;
+    }
+
+    .explication-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+      color: var(--text-primary);
+    }
+
+    .explication-table tr:hover td {
+      background: rgba(30, 41, 59, 0.45);
+    }
+
+    .sections-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+
+    .section-card {
+      background: #162032;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .section-card h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .section-card p {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin: 4px 0 12px;
+    }
+
+    .layer-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 9px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 11.5px;
+    }
+
+    .layer-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .layer-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .layer-thick {
+      font-family: var(--font-mono);
+      color: var(--accent-amber);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Адаптивная мобильная вёрстка для смартфонов (до 768px) */
+    @media (max-width: 768px) {
+      .header-badge {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        max-width: none;
+        padding: 9px 12px;
+      }
+
+      .header-title {
+        font-size: 12.5px;
+      }
+
+      .header-subtitle {
+        font-size: 10.5px;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .legend-strip {
+        margin-top: 6px;
+        padding-top: 6px;
+        font-size: 10px;
+        gap: 4px 8px;
+      }
+
+      .tooltip-card {
+        top: auto;
+        bottom: 112px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-width: none;
+        padding: 11px 13px;
+      }
+
+      .tt-building-name {
+        font-size: 13px;
+      }
+
+      .tt-purpose {
+        font-size: 11px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .bottom-dock-wrapper {
+        bottom: 8px;
+        width: calc(100vw - 16px);
+      }
+
+      .bottom-dock {
+        padding: 8px 10px;
+        gap: 6px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .dock-btn {
+        padding: 7px 10px;
+        font-size: 11.5px;
+      }
+
+      .dock-select-label {
+        display: none;
+      }
+
+      .dock-select {
+        max-width: 165px;
+        padding: 6px 8px;
+        font-size: 11.5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app-root" data-camera-mode="iso" data-visual-style="tech_dark">
+    <!-- 3D WebGL Сцена -->
+    <div id="canvas-container" data-testid="pzu-webgl-canvas" aria-label="Интерактивный 3D-макет генерального плана ПЗУ"></div>
+
+    <!-- Верхний левый штамп и условные обозначения чертежа -->
+    <header class="header-badge">
+      <div class="header-top-row">
+        <h1 class="header-title">НСЗ/02/08-25ПД-ПЗУ · Разбивочный план ПЗУ (3D)</h1>
+        <span class="header-cadastre">Уч. 75:18:570101:208</span>
+      </div>
+      <p class="header-subtitle">
+        Пункт производства ЭВВ «Сибирит®» (Этап I) и Склад ВМ 49,9 т (Этап II) · Забайкальский край, Сретенский р-н
+      </p>
+      <div class="legend-strip">
+        <span class="legend-item"><span class="legend-line" style="background:#ef4444"></span>Запретная зона</span>
+        <span class="legend-sep" aria-hidden="true">·</span>
+        <span class="legend-item"><span class="legend-line" style="background:#d97706"></span>Дороги (тип I)</span>
+        <span class="legend-sep" aria-hidden="true">·</span>
+        <span class="legend-item"><span class="legend-line" style="background:#94a3b8"></span>Площадки ПАГ-14 (тип III)</span>
+        <span class="legend-sep" aria-hidden="true">·</span>
+        <span class="legend-item"><span class="legend-line" style="background:#38bdf8"></span>Канавы 1:20</span>
+      </div>
+    </header>
+
+    <!-- Интерактивная карточка выбранного здания (HTML/CSS тултип) -->
+    <aside id="building-tooltip-card" data-testid="building-tooltip-card" class="tooltip-card" aria-label="Информационная карточка выбранного сооружения">
+      <div class="tt-top-bar">
+        <div class="tt-code-badge">
+          <span id="tt-code">Поз. по генплану 2.16.1</span>
+          <span class="legend-sep"> · </span>
+          <span id="tt-tag" class="tt-tag-highlight">455 м (455 т)</span>
+        </div>
+        <div class="tt-nav-btns">
+          <button type="button" id="btn-prev-building" class="icon-btn" aria-label="Предыдущее сооружение" title="Предыдущее сооружение">‹</button>
+          <button type="button" id="btn-next-building" class="icon-btn" aria-label="Следующее сооружение" title="Следующее сооружение">›</button>
+          <button type="button" id="btn-close-tooltip" class="icon-btn" aria-label="Скрыть подсказку здания" title="Закрыть">✕</button>
+        </div>
+      </div>
+
+      <h2 id="tt-name" class="tt-building-name">Корпус склада аммиачной селитры №1 (секция 455)</h2>
+
+      <div class="tt-specs-box">
+        <div id="tt-dims">Маркировка плана: 455 м / 455 т · Секция 52.15 × 7.00 × 7.20 м</div>
+        <div id="tt-elev" class="tt-elev-line">Отметка планировки: 591.80 м · Кол-во: 1 шт.</div>
+      </div>
+
+      <p id="tt-purpose" class="tt-purpose">
+        Хранение аммиачной селитры в МКР (биг-бэгах) для производства эмульсионных ВВ «Сибирит». Оснащён сквозным проездом и торцевыми рампами.
+      </p>
+
+      <div class="tt-quick-jump">
+        <span class="tt-quick-label">Переход:</span>
+        <div class="tt-quick-list">
+          <button type="button" class="chip-btn active" data-jump-id="b-2.16.1">455м/т</button>
+          <button type="button" class="chip-btn" data-jump-id="b-2.16.4">401м/т</button>
+          <button type="button" class="chip-btn" data-jump-id="b-2.16.3">392м/т</button>
+          <button type="button" class="chip-btn" data-jump-id="b-2.2">АБК 2.2</button>
+          <button type="button" class="chip-btn" data-jump-id="b-2.15.1">Склад №1</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Нижняя панель управления (Collapsible Bottom Control Dock) -->
+    <nav id="bottom-dock-wrapper" class="bottom-dock-wrapper" aria-label="Панель управления 3D-макетом ПЗУ">
+      <button type="button" id="btn-toggle-dock" class="dock-collapse-handle">
+        <span id="dock-toggle-text">▾ Скрыть панель</span>
+      </button>
+
+      <div class="bottom-dock">
+        <!-- Режимы камеры -->
+        <div class="dock-group" role="group" aria-label="Режимы камеры">
+          <button type="button" id="btn-cam-iso" class="dock-btn active">Изометрия 3D</button>
+          <button type="button" id="btn-cam-top" class="dock-btn">Вид сверху (2D план)</button>
+          <button type="button" id="btn-cam-tour" class="dock-btn">Презентационный тур</button>
+        </div>
+
+        <!-- Селектор объектов по экспликации 2.1 - 2.18 -->
+        <div class="dock-select-wrap">
+          <label for="explication-select" class="dock-select-label">Объект ПЗУ:</label>
+          <select id="explication-select" class="dock-select" aria-label="Выбор здания или сооружения по экспликации">
+            <option value="b-2.16.1">2.16.1 Корпус 455м/т (591.8 м)</option>
+          </select>
+        </div>
+
+        <!-- Управление слоями, рельефом и стилем освещения -->
+        <div class="dock-group" role="group" aria-label="Слои и стиль освещения">
+          <button type="button" id="btn-style-mode" class="dock-btn">Стиль: Tech ГИС</button>
+          <button type="button" id="btn-layer-contours" class="dock-btn layer-on">Изолинии 585–596м</button>
+          <button type="button" id="btn-layer-ditches" class="dock-btn layer-on">Канавы 1:20</button>
+          <button type="button" id="btn-layer-forbidden" class="dock-btn danger-on">Запретная зона</button>
+          <button type="button" id="btn-terrain-scale" class="dock-btn">Рельеф Y: 1.6×</button>
+        </div>
+
+        <!-- Ведомость экспликации -->
+        <div class="dock-group">
+          <button type="button" id="btn-open-explication" class="dock-btn">Экспликация и узлы</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Модальное окно: Ведомость экспликации 2.1–2.18 и конструктивные разрезы дорожной одежды -->
+    <div id="explication-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Экспликация зданий и конструктивные разрезы ПЗУ">
+      <div class="modal-window">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">Ведомость экспликации (поз. 2.1–2.18) и конструктивные сечения ПЗУ</h2>
+            <p class="modal-subtitle">НСЗ/02/08-25ПД-ПЗУ · Лист 2 — Разбивочный план · ООО «ТЭК Инжиниринг»</p>
+          </div>
+          <button type="button" id="btn-close-modal" class="icon-btn" aria-label="Закрыть окно">✕</button>
+        </div>
+
+        <div class="modal-tabs">
+          <button type="button" id="tab-btn-table" class="dock-btn active">Экспликация зданий и сооружений (2.1 – 2.18)</button>
+          <button type="button" id="tab-btn-sections" class="dock-btn">Конструкции дорожной одежды и канав</button>
+        </div>
+
+        <div class="modal-body">
+          <div id="tab-panel-table">
+            <table class="explication-table">
+              <thead>
+                <tr>
+                  <th>№ по плану</th>
+                  <th>Наименование здания / сооружения</th>
+                  <th>Кол-во</th>
+                  <th>Отметка, м</th>
+                  <th>Габариты и характеристики</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody id="explication-tbody"></tbody>
+            </table>
+          </div>
+
+          <div id="tab-panel-sections" style="display:none;">
+            <div class="sections-grid">
+              <div class="section-card">
+                <h3>Сечение проезда, тип I</h3>
+                <p>Общая толщина дорожной одежды: 380 мм (ГОСТ Р 71244–2024, IndorPavement v26.3.0)</p>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#d97706"></span>ПГС ГОСТ 23735-2014 (верхний слой)</span>
+                  <span class="layer-thick">250 мм</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#38bdf8"></span>Георешетка GECARC Неосинт 0614</span>
+                  <span class="layer-thick">армирование</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#b45309"></span>ПГС ГОСТ 23735-2014 (нижний слой)</span>
+                  <span class="layer-thick">130 мм</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#a855f7"></span>Геотекстиль GETPF Неосинт XU2185</span>
+                  <span class="layer-thick">мембрана</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#57534e"></span>Уплотнённый грунт земляного полотна</span>
+                  <span class="layer-thick">основание</span>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <h3>Сечение щебеночной канавы, тип III (1:20)</h3>
+                <p>Трапецеидальный водоотводной профиль: ширина по дну 500 мм, глубина ≥ 300 мм, откосы 1:1.5</p>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#94a3b8"></span>Щебень М600 фр. 40–70 ГОСТ 8267-93*</span>
+                  <span class="layer-thick">150 мм</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#38bdf8"></span>Геотекстиль GETPF Неосинт XU2185</span>
+                  <span class="layer-thick">разделитель</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#57534e"></span>Уплотнённый грунт (откосы не менее 1:1.5)</span>
+                  <span class="layer-thick">профиль</span>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <h3>Сечение площадок (тип III)</h3>
+                <p>Тяжёлое сборное покрытие складских и производственных зон</p>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#cbd5e1"></span>Плита дорожная ПАГ-14</span>
+                  <span class="layer-thick">140 мм</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#d97706"></span>ПГС ГОСТ 23735-2014</span>
+                  <span class="layer-thick">320 мм (0.32 м)</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#38bdf8"></span>Нетканый геотекстиль</span>
+                  <span class="layer-thick">мембрана</span>
+                </div>
+                <div class="layer-item">
+                  <span class="layer-left"><span class="layer-dot" style="background:#57534e"></span>Уплотнённый грунт</span>
+                  <span class="layer-thick">основание</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Единый автономный 3D-скрипт (классический <script> без html-proxy, работает везде: в браузере, по двойному клику и на смартфоне) -->
+  <script>
+    (function () {
+      'use strict';
+
+      // Ориентация главной оси площадки по чертежу ПЗУ (СЗ — ЮВ, ~ -26.5°)
+      var SITE_AXIS_ANGLE = -0.462;
+
+      // 1. Математическая модель рельефа (горизонтали от 585.0 м на СВ до 596.2 м на ЮЗ)
+      function getElevationAt(x, z) {
+        var swProjection = (-x * 0.78 + z * 0.62) / 215;
+        var baseElevation = 591.2 + swProjection * 5.2;
+        var undulation =
+          Math.sin(x * 0.018 + z * 0.012) * 0.38 +
+          Math.cos(x * 0.011 - z * 0.02) * 0.24;
+        return Math.max(584.5, Math.min(596.8, baseElevation + undulation));
+      }
+
+      // 2. Внешний контур запретной (охранной) зоны с длинами сторон по разбивочному плану
+      var BOUNDARY_POLYGON = [
+        { x: -162, z: -72, segmentLabel: '140.75 м' },
+        { x: -42, z: -136, segmentLabel: '60.10 м' },
+        { x: 14, z: -166, segmentLabel: '73.50 м' },
+        { x: 48, z: -98, segmentLabel: '86.00 м' },
+        { x: 92, z: -18, segmentLabel: '149.25 м' },
+        { x: 158, z: 96, segmentLabel: '92.25 м' },
+        { x: 74, z: 144, segmentLabel: '56.35 м' },
+        { x: 30, z: 168, segmentLabel: '158.20 м' },
+        { x: -58, z: 42, segmentLabel: '130.05 м' },
+        { x: -116, z: 6, segmentLabel: '98.40 м' }
+      ];
+
+      // 3. Полная ведомость зданий и сооружений по экспликации (поз. 2.1 – 2.18, всего 25 корпусов)
+      var BUILDINGS_DATA = [
+        {
+          id: 'b-2.16.1',
+          code: '2.16.1',
+          name: 'Корпус склада аммиачной селитры №1 (секция 455)',
+          shortLabel: '2.16.1 Корпус 455м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 2,
+          z: -4,
+          width: 8.5,
+          length: 54.0,
+          height: 7.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 591.8,
+          blueprintTag: '455 м (455 т)',
+          dimensionsText: 'Маркировка плана: 455 м / 455 т · Секция 52.15 × 7.00 × 7.20 м',
+          purpose: 'Хранение аммиачной селитры в МКР (биг-бэгах) для производства эмульсионных ВВ «Сибирит». Оснащён сквозным проездом и торцевыми рампами.',
+          roofType: 'gabled',
+          colorHex: 0x334155,
+          accentHex: 0x38bdf8
+        },
+        {
+          id: 'b-2.16.2',
+          code: '2.16.2',
+          name: 'Корпус склада аммиачной селитры №2 (секция 455)',
+          shortLabel: '2.16.2 Корпус 455м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 15,
+          z: -10.5,
+          width: 8.5,
+          length: 54.0,
+          height: 7.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 591.4,
+          blueprintTag: '455 м (455 т)',
+          dimensionsText: 'Маркировка плана: 455 м / 455 т · Секция 52.15 × 7.00 × 7.20 м',
+          purpose: 'Второй параллельный корпус северной складской группы (расстояние между корпусами 6.00 м). Кольцевой объезд автотранспорта по периметру.',
+          roofType: 'gabled',
+          colorHex: 0x334155,
+          accentHex: 0x38bdf8
+        },
+        {
+          id: 'b-2.16.3',
+          code: '2.16.3',
+          name: 'Корпус склада аммиачной селитры №3 (секция 392)',
+          shortLabel: '2.16.3 Корпус 392м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 34,
+          z: 88,
+          width: 7.5,
+          length: 46.5,
+          height: 6.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.0,
+          blueprintTag: '392 м (392 т)',
+          dimensionsText: 'Маркировка плана: 392 м / 392 т · Секция 45.15 × 7.00 × 6.80 м',
+          purpose: 'Западный крайний корпус южного складского блока на площадке типа III (плиты дорожные ПАГ-14).',
+          roofType: 'gabled',
+          colorHex: 0x2d3748,
+          accentHex: 0xf59e0b
+        },
+        {
+          id: 'b-2.16.4',
+          code: '2.16.4',
+          name: 'Корпус склада аммиачной селитры №4 (секция 401)',
+          shortLabel: '2.16.4 Корпус 401м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 45,
+          z: 82.5,
+          width: 7.5,
+          length: 48.0,
+          height: 6.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.0,
+          blueprintTag: '401 м (401 т)',
+          dimensionsText: 'Маркировка плана: 401 м / 401 т · Секция 46.00 × 7.00 × 6.80 м',
+          purpose: 'Внутренний корпус южной группы складов с технологическим проездом 5.00 м для вилочных погрузчиков.',
+          roofType: 'gabled',
+          colorHex: 0x334155,
+          accentHex: 0xf59e0b
+        },
+        {
+          id: 'b-2.16.5',
+          code: '2.16.5',
+          name: 'Корпус склада аммиачной селитры №5 (секция 401)',
+          shortLabel: '2.16.5 Корпус 401м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 56,
+          z: 77,
+          width: 7.5,
+          length: 48.0,
+          height: 6.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.0,
+          blueprintTag: '401 м (401 т)',
+          dimensionsText: 'Маркировка плана: 401 м / 401 т · Секция 46.00 × 7.00 × 6.80 м',
+          purpose: 'Третий параллельный корпус южной группы складов селитры (вместимость секции 401 т).',
+          roofType: 'gabled',
+          colorHex: 0x334155,
+          accentHex: 0xf59e0b
+        },
+        {
+          id: 'b-2.16.6',
+          code: '2.16.6',
+          name: 'Корпус склада аммиачной селитры №6 (секция 392)',
+          shortLabel: '2.16.6 Корпус 392м/т',
+          category: 'warehouse_long',
+          count: 1,
+          x: 67,
+          z: 71.5,
+          width: 7.5,
+          length: 46.5,
+          height: 6.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.0,
+          blueprintTag: '392 м (392 т)',
+          dimensionsText: 'Маркировка плана: 392 м / 392 т · Секция 45.15 × 7.00 × 6.80 м',
+          purpose: 'Восточный крайний корпус южной группы складов с выездом на кольцевой проезд типа I.',
+          roofType: 'gabled',
+          colorHex: 0x2d3748,
+          accentHex: 0xf59e0b
+        },
+        {
+          id: 'b-2.15.1',
+          code: '2.15.1',
+          name: 'Склад №1 (хранилище ВМ с защитной обваловкой)',
+          shortLabel: '2.15.1 Склад №1',
+          category: 'warehouse_berm',
+          count: 1,
+          x: -64,
+          z: -38,
+          width: 12.0,
+          length: 15.0,
+          height: 5.4,
+          rotationY: SITE_AXIS_ANGLE + Math.PI / 2,
+          elevation: 595.0,
+          blueprintTag: 'Склад №1',
+          dimensionsText: '15.00 × 12.00 × 5.40 м (в обваловке 32 × 28 м)',
+          purpose: 'Постоянный расходный склад взрывчатых материалов (Этап II, общая вместимость комплекса 49,9 т). Окружён земляным защитным валом с откосами 1:1.5.',
+          roofType: 'bermed',
+          colorHex: 0x475569,
+          accentHex: 0x22d3ee,
+          hasBerm: true
+        },
+        {
+          id: 'b-2.15.2',
+          code: '2.15.2',
+          name: 'Склад №2 (хранилище ВМ с защитной обваловкой)',
+          shortLabel: '2.15.2 Склад №2',
+          category: 'warehouse_berm',
+          count: 1,
+          x: -44,
+          z: 6,
+          width: 14.4,
+          length: 15.0,
+          height: 5.4,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 594.0,
+          blueprintTag: 'Склад №2',
+          dimensionsText: '15.00 × 14.40 × 5.40 м (в обваловке 34 × 30 м)',
+          purpose: 'Хранилище взрывчатых материалов №2 с тупиковым подъездом и разворотной площадкой у рампы.',
+          roofType: 'bermed',
+          colorHex: 0x475569,
+          accentHex: 0x22d3ee,
+          hasBerm: true
+        },
+        {
+          id: 'b-2.15.3',
+          code: '2.15.3',
+          name: 'Склад №3 (хранилище ВМ с защитной обваловкой)',
+          shortLabel: '2.15.3 Склад №3',
+          category: 'warehouse_berm',
+          count: 1,
+          x: -22,
+          z: 48,
+          width: 12.2,
+          length: 17.7,
+          height: 5.4,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.5,
+          blueprintTag: 'Склад №3',
+          dimensionsText: '17.70 × 12.20 × 5.40 м (в обваловке 36 × 28 м)',
+          purpose: 'Южное хранилище ВМ №3 с защитным земляным валом и молниезащитой по контуру.',
+          roofType: 'bermed',
+          colorHex: 0x475569,
+          accentHex: 0x22d3ee,
+          hasBerm: true
+        },
+        {
+          id: 'b-2.1',
+          code: '2.1',
+          name: 'МПГУ (Модульный пункт приготовления эмульсии «Сибирит®»)',
+          shortLabel: '2.1 МПГУ',
+          category: 'production',
+          count: 1,
+          x: 84,
+          z: 22,
+          width: 12.2,
+          length: 16.0,
+          height: 8.6,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.0,
+          blueprintTag: '2.1 МПГУ',
+          dimensionsText: '16.00 × 12.20 × 8.60 м · Отм. 590.00 м',
+          purpose: 'Главный производственный корпус Этапа I: приготовление невзрывчатых компонентов эмульсионных ВВ марки «Сибирит®» с узлом загрузки СЗМ.',
+          roofType: 'gabled',
+          colorHex: 0x1e293b,
+          accentHex: 0xf97316
+        },
+        {
+          id: 'b-2.2',
+          code: '2.2',
+          name: 'АБК (Административно-бытовой корпус)',
+          shortLabel: '2.2 АБК',
+          category: 'admin',
+          count: 1,
+          x: 78,
+          z: 4,
+          width: 12.2,
+          length: 20.0,
+          height: 6.4,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.0,
+          blueprintTag: '2.2 АБК',
+          dimensionsText: '20.00 × 12.20 × 6.40 м · Отм. 590.00 м',
+          purpose: 'Административно-бытовой корпус для инженерно-технического персонала, диспетчерской, лаборатории контроля качества и бытовых помещений.',
+          roofType: 'flat',
+          colorHex: 0x3b495e,
+          accentHex: 0x38bdf8
+        },
+        {
+          id: 'b-2.8',
+          code: '2.8',
+          name: 'Насосная станция противопожарного и тех. водоснабжения',
+          shortLabel: '2.8 Насосная',
+          category: 'utility',
+          count: 1,
+          x: 96,
+          z: 36,
+          width: 6.0,
+          length: 9.0,
+          height: 4.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.4,
+          blueprintTag: '2.8 Насосная',
+          dimensionsText: '9.00 × 6.00 × 4.20 м · Отм. 590.40 м',
+          purpose: 'Насосная станция подачи воды на технологические нужды ХВО/МПГУ и систему наружного пожаротушения.',
+          roofType: 'flat',
+          colorHex: 0x334155,
+          accentHex: 0x60a5fa
+        },
+        {
+          id: 'b-2.9',
+          code: '2.9',
+          name: 'Резервуары запаса воды (2 шт.)',
+          shortLabel: '2.9 Резервуары (×2)',
+          category: 'utility',
+          count: 2,
+          x: 102,
+          z: 48,
+          width: 9.5,
+          length: 14.0,
+          height: 5.5,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.5,
+          blueprintTag: '2.9 РЗВ ×2',
+          dimensionsText: '2 резервуара · Площадка 14.00 × 9.50 × 5.50 м',
+          purpose: 'Два цилиндрических резервуара противопожарного и производственного запаса воды.',
+          roofType: 'tank',
+          colorHex: 0x475569,
+          accentHex: 0x38bdf8
+        },
+        {
+          id: 'b-2.10',
+          code: '2.10',
+          name: 'ХВО (Блок химводоочистки)',
+          shortLabel: '2.10 ХВО',
+          category: 'production',
+          count: 1,
+          x: 88,
+          z: 32,
+          width: 4.9,
+          length: 12.2,
+          height: 4.5,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.0,
+          blueprintTag: '2.10 ХВО',
+          dimensionsText: '12.20 × 4.90 × 4.50 м · Отм. 590.00 м',
+          purpose: 'Модульная установка химической водоочистки и подготовки технологической воды для линии эмульсии.',
+          roofType: 'flat',
+          colorHex: 0x334155,
+          accentHex: 0x2dd4bf
+        },
+        {
+          id: 'b-2.17',
+          code: '2.17',
+          name: 'МЗКТ-10-4 (Модуль загрузки и стоянки СЗМ)',
+          shortLabel: '2.17 МЗКТ-10-4',
+          category: 'production',
+          count: 1,
+          x: 74,
+          z: 27,
+          width: 7.35,
+          length: 12.2,
+          height: 5.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.0,
+          blueprintTag: '2.17 МЗКТ',
+          dimensionsText: '12.20 × 7.35 × 5.80 м · Отм. 590.00 м',
+          purpose: 'Специализированный технологический модуль МЗКТ-10-4 в составе производственного комплекса.',
+          roofType: 'gabled',
+          colorHex: 0x293548,
+          accentHex: 0xf59e0b
+        },
+        {
+          id: 'b-2.18',
+          code: '2.18',
+          name: 'Площадка хранения сырьевых компонентов',
+          shortLabel: '2.18 Площадка сырья',
+          category: 'production',
+          count: 1,
+          x: 64,
+          z: 10,
+          width: 20.0,
+          length: 53.65,
+          height: 3.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 590.2,
+          blueprintTag: '2.18 (53.65×20м)',
+          dimensionsText: '53.65 × 20.00 м · Покрытие из плит ПАГ-14',
+          purpose: 'Твёрдая технологическая площадка хранения контейнеров и тары с сырьевыми компонентами со штабелями.',
+          roofType: 'open_pad',
+          colorHex: 0x475569,
+          accentHex: 0xfacc15
+        },
+        {
+          id: 'b-2.3',
+          code: '2.3',
+          name: 'Полигон испытаний ВМ',
+          shortLabel: '2.3 Полигон',
+          category: 'safety',
+          count: 1,
+          x: -118,
+          z: -62,
+          width: 18.0,
+          length: 18.0,
+          height: 3.0,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 595.0,
+          blueprintTag: '2.3 Полигон',
+          dimensionsText: 'Диаметр 18.0 м · Внутри западного разворотного кольца',
+          purpose: 'Специализированный полигон для контрольных испытаний качества взрывчатых материалов с периметральным валом безопасности.',
+          roofType: 'bermed',
+          colorHex: 0x57534e,
+          accentHex: 0xef4444,
+          hasBerm: true
+        },
+        {
+          id: 'b-2.4',
+          code: '2.4',
+          name: 'Место для утилизации тары',
+          shortLabel: '2.4 Утилизация тары',
+          category: 'utility',
+          count: 1,
+          x: -70,
+          z: -92,
+          width: 14.0,
+          length: 18.0,
+          height: 2.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 593.5,
+          blueprintTag: '2.4 Утилизация',
+          dimensionsText: '18.00 × 14.00 м · Отм. 593.50 м',
+          purpose: 'Изолированная площадка с защитным ограждением для безопасного сбора и уничтожения освободившейся тары из-под ВМ.',
+          roofType: 'open_pad',
+          colorHex: 0x52525b,
+          accentHex: 0xf97316
+        },
+        {
+          id: 'b-2.5',
+          code: '2.5',
+          name: 'Укрытие взрывника',
+          shortLabel: '2.5 Укрытие',
+          category: 'safety',
+          count: 1,
+          x: -14,
+          z: -42,
+          width: 5.0,
+          length: 6.5,
+          height: 3.4,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 591.5,
+          blueprintTag: '2.5 Укрытие',
+          dimensionsText: '6.50 × 5.00 × 3.40 м · Бронированный блок-модуль',
+          purpose: 'Защитное инженерное укрытие персонала (взрывника) при проведении контрольных работ на полигоне.',
+          roofType: 'arched',
+          colorHex: 0x3f3f46,
+          accentHex: 0xef4444
+        },
+        {
+          id: 'b-2.6',
+          code: '2.6',
+          name: 'Противопожарный щит и пост ПБ',
+          shortLabel: '2.6 Пож. щит',
+          category: 'safety',
+          count: 1,
+          x: -20,
+          z: -38,
+          width: 3.0,
+          length: 4.0,
+          height: 2.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 591.5,
+          blueprintTag: '2.6 ПЩ',
+          dimensionsText: '4.00 × 3.00 × 2.80 м · Комплектный пожарный пост',
+          purpose: 'Пожарный пост с запасом песка, первичными средствами пожаротушения и гидрантом у центрального узла.',
+          roofType: 'flat',
+          colorHex: 0x991b1b,
+          accentHex: 0xfef08a
+        },
+        {
+          id: 'b-2.7',
+          code: '2.7',
+          name: 'Блок-бокс над артскважиной',
+          shortLabel: '2.7 Артскважина',
+          category: 'utility',
+          count: 1,
+          x: 6,
+          z: -148,
+          width: 6.0,
+          length: 6.0,
+          height: 3.8,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 587.2,
+          blueprintTag: '2.7 Скважина',
+          dimensionsText: 'Павильон 6.0 × 6.0 м на площадке 10.0 × 10.0 м · Отм. 587.20 м',
+          purpose: 'Утеплённый блок-бокс водозаборной артезианской скважины в северной нижней точке рельефа площадки.',
+          roofType: 'gabled',
+          colorHex: 0x1e3a8a,
+          accentHex: 0x38bdf8
+        },
+        {
+          id: 'b-2.11',
+          code: '2.11',
+          name: 'БКТП (Блочная комплектная трансформаторная подстанция)',
+          shortLabel: '2.11 БКТП',
+          category: 'utility',
+          count: 1,
+          x: 42,
+          z: -86,
+          width: 5.5,
+          length: 9.0,
+          height: 4.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 588.0,
+          blueprintTag: '2.11 БКТП',
+          dimensionsText: '9.00 × 5.50 × 4.20 м · Отм. 588.00 м',
+          purpose: 'Трансформаторная подстанция электроснабжения площадки с кабельными эстакадами и молниеприёмниками.',
+          roofType: 'flat',
+          colorHex: 0x334155,
+          accentHex: 0xfacc15
+        },
+        {
+          id: 'b-2.12',
+          code: '2.12',
+          name: 'ДЭС (Дизельная электростанция резервного питания)',
+          shortLabel: '2.12 ДЭС',
+          category: 'utility',
+          count: 1,
+          x: 48,
+          z: -74,
+          width: 5.5,
+          length: 10.0,
+          height: 4.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 588.0,
+          blueprintTag: '2.12 ДЭС',
+          dimensionsText: '10.00 × 5.50 × 4.20 м · Отм. 588.00 м',
+          purpose: 'Автономная дизель-генераторная установка I категории надёжности электроснабжения систем безопасности и ПБ.',
+          roofType: 'flat',
+          colorHex: 0x334155,
+          accentHex: 0xfacc15
+        },
+        {
+          id: 'b-2.13',
+          code: '2.13',
+          name: 'КПП (Контрольно-пропускной пункт)',
+          shortLabel: '2.13 КПП',
+          category: 'admin',
+          count: 1,
+          x: -10,
+          z: -56,
+          width: 6.5,
+          length: 9.5,
+          height: 4.0,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 591.7,
+          blueprintTag: '2.13 КПП',
+          dimensionsText: '9.50 × 6.50 × 4.00 м · Досмотровая площадка и шлагбаум',
+          purpose: 'Контрольно-пропускной пункт охраны с пультом периметральной сигнализации, турникетом и автоматическим шлагбаумом.',
+          roofType: 'flat',
+          colorHex: 0x1e293b,
+          accentHex: 0x10b981
+        },
+        {
+          id: 'b-2.14',
+          code: '2.14',
+          name: 'Пункт выдачи ВМ',
+          shortLabel: '2.14 Пункт выдачи',
+          category: 'admin',
+          count: 1,
+          x: -26,
+          z: -24,
+          width: 6.0,
+          length: 10.0,
+          height: 4.2,
+          rotationY: SITE_AXIS_ANGLE,
+          elevation: 592.0,
+          blueprintTag: '2.14 Выдача',
+          dimensionsText: '10.00 × 6.00 × 4.20 м · Отм. 592.00 м',
+          purpose: 'Специализированный пункт учёта, приёма и выдачи взрывчатых материалов на въезде в складскую зону.',
+          roofType: 'gabled',
+          colorHex: 0x334155,
+          accentHex: 0x38bdf8
+        }
+      ];
+
+      // 4. Площадки типа III (плиты дорожные ПАГ-14)
+      var PLATFORMS_DATA = [
+        { id: 'plat-north-warehouses', x: 8.5, z: -7.2, width: 32, length: 68, rotationY: SITE_AXIS_ANGLE },
+        { id: 'plat-south-warehouses', x: 50.5, z: 79.5, width: 50, length: 62, rotationY: SITE_AXIS_ANGLE },
+        { id: 'plat-production-main', x: 78, z: 20, width: 48, length: 76, rotationY: SITE_AXIS_ANGLE },
+        { id: 'plat-energy-bktp', x: 45, z: -80, width: 18, length: 28, rotationY: SITE_AXIS_ANGLE },
+        { id: 'plat-well-2.7', x: 6, z: -148, width: 12, length: 12, rotationY: SITE_AXIS_ANGLE },
+        { id: 'plat-kpp-hub', x: -16, z: -40, width: 24, length: 34, rotationY: SITE_AXIS_ANGLE }
+      ];
+
+      // 5. Дорожная сеть (Тип I) и водоотводные щебеночные канавы (Тип III, 1:20)
+      var ROADS_DATA = [
+        {
+          id: 'road-nw-loop',
+          type: 'road_type_1',
+          width: 7.0,
+          closed: true,
+          points: [[-148, -68], [-62, -116], [-34, -68], [-58, -42], [-114, -18], [-144, -44]]
+        },
+        {
+          id: 'road-north-branch',
+          type: 'road_type_1',
+          width: 6.5,
+          closed: false,
+          points: [[-62, -116], [4, -152], [38, -88], [62, -38], [96, 30], [126, 92], [78, 128]]
+        },
+        {
+          id: 'road-central-connector',
+          type: 'road_type_1',
+          width: 7.0,
+          closed: false,
+          points: [[-34, -68], [-12, -46], [28, -54], [62, -38]]
+        },
+        {
+          id: 'road-oval-455',
+          type: 'road_type_1',
+          width: 6.5,
+          closed: true,
+          points: [[-20, -32], [4, -44], [34, 16], [10, 28]]
+        },
+        {
+          id: 'road-oval-392-401',
+          type: 'road_type_1',
+          width: 6.5,
+          closed: true,
+          points: [[12, 62], [54, 40], [88, 98], [46, 120]]
+        },
+        {
+          id: 'road-west-serpentine',
+          type: 'road_type_1',
+          width: 6.5,
+          closed: false,
+          points: [[-58, -42], [-20, -32], [10, 28], [12, 62], [46, 120], [78, 128]]
+        },
+        {
+          id: 'road-spur-2.15.2',
+          type: 'road_type_1',
+          width: 5.5,
+          closed: false,
+          points: [[-8, -6], [-40, 8]]
+        },
+        {
+          id: 'road-spur-2.15.3',
+          type: 'road_type_1',
+          width: 5.5,
+          closed: false,
+          points: [[11, 44], [-20, 50]]
+        },
+        {
+          id: 'ditch-nw-outer',
+          type: 'ditch_type_3',
+          width: 2.2,
+          closed: false,
+          points: [[-154, -66], [-60, -122], [4, -158], [44, -92], [102, 28], [132, 94]]
+        },
+        {
+          id: 'ditch-west-berms',
+          type: 'ditch_type_3',
+          width: 2.2,
+          closed: false,
+          points: [[-120, -12], [-64, -36], [-26, -24], [4, 34], [40, 126], [80, 134]]
+        }
+      ];
+
+      // Сразу инициализируем список экспликации и кнопки UI (независимо от WebGL)
+      var selectedBuilding = BUILDINGS_DATA[0];
+      var appRoot = document.getElementById('app-root');
+      var tooltipCard = document.getElementById('building-tooltip-card');
+      var ttCode = document.getElementById('tt-code');
+      var ttTag = document.getElementById('tt-tag');
+      var ttName = document.getElementById('tt-name');
+      var ttDims = document.getElementById('tt-dims');
+      var ttElev = document.getElementById('tt-elev');
+      var ttPurpose = document.getElementById('tt-purpose');
+      var explicationSelect = document.getElementById('explication-select');
+      var quickJumpBtns = document.querySelectorAll('[data-jump-id]');
+
+      var onSelectBuilding3D = function () {};
+
+      function populateExplicationUI() {
+        explicationSelect.innerHTML = '<option value="">— Все сооружения (25 поз.) —</option>';
+        var tbody = document.getElementById('explication-tbody');
+        tbody.innerHTML = '';
+
+        for (var i = 0; i < BUILDINGS_DATA.length; i++) {
+          var b = BUILDINGS_DATA[i];
+          var opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = b.shortLabel + ' (' + b.elevation.toFixed(1) + ' м)';
+          explicationSelect.appendChild(opt);
+
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td style="font-family:var(--font-mono);font-weight:600;color:var(--accent-amber);">' + b.code + '</td>' +
+            '<td style="font-weight:600;">' + b.name + '</td>' +
+            '<td style="font-family:var(--font-mono);">' + b.count + '</td>' +
+            '<td style="font-family:var(--font-mono);color:var(--accent-sky-bright);">' + b.elevation.toFixed(2) + '</td>' +
+            '<td style="color:var(--text-secondary);">' + b.dimensionsText + '</td>' +
+            '<td><button type="button" class="chip-btn" data-table-select="' + b.id + '">Показать в 3D</button></td>';
+          tbody.appendChild(tr);
+        }
+
+        explicationSelect.value = BUILDINGS_DATA[0].id;
+
+        var tableBtns = tbody.querySelectorAll('[data-table-select]');
+        for (var j = 0; j < tableBtns.length; j++) {
+          tableBtns[j].addEventListener('click', function () {
+            var id = this.getAttribute('data-table-select');
+            for (var k = 0; k < BUILDINGS_DATA.length; k++) {
+              if (BUILDINGS_DATA[k].id === id) {
+                selectBuilding(BUILDINGS_DATA[k], true);
+                document.getElementById('explication-modal').classList.add('hidden');
+                break;
+              }
+            }
+          });
+        }
+      }
+
+      function selectBuilding(b, focusCamera) {
+        selectedBuilding = b;
+        explicationSelect.value = b ? b.id : '';
+
+        for (var i = 0; i < quickJumpBtns.length; i++) {
+          var btn = quickJumpBtns[i];
+          btn.classList.toggle('active', Boolean(b && btn.getAttribute('data-jump-id') === b.id));
+        }
+
+        if (b) {
+          ttCode.textContent = 'Поз. по генплану ' + b.code;
+          ttTag.textContent = b.blueprintTag || '';
+          ttName.textContent = b.name;
+          ttDims.textContent = b.dimensionsText;
+          ttElev.textContent = 'Отметка планировки: ' + b.elevation.toFixed(2) + ' м · Кол-во: ' + b.count + ' шт.';
+          ttPurpose.textContent = b.purpose;
+          tooltipCard.classList.remove('hidden');
+        } else {
+          tooltipCard.classList.add('hidden');
+        }
+
+        onSelectBuilding3D(b, Boolean(focusCamera));
+      }
+
+      populateExplicationUI();
+
+      // События модального окна и нижней панели
+      var dockWrapper = document.getElementById('bottom-dock-wrapper');
+      var dockToggleText = document.getElementById('dock-toggle-text');
+      document.getElementById('btn-toggle-dock').addEventListener('click', function () {
+        dockWrapper.classList.toggle('collapsed');
+        dockToggleText.textContent = dockWrapper.classList.contains('collapsed')
+          ? '▴ Показать панель'
+          : '▾ Скрыть панель';
+      });
+
+      var modal = document.getElementById('explication-modal');
+      var tabBtnTable = document.getElementById('tab-btn-table');
+      var tabBtnSections = document.getElementById('tab-btn-sections');
+      var tabPanelTable = document.getElementById('tab-panel-table');
+      var tabPanelSections = document.getElementById('tab-panel-sections');
+
+      document.getElementById('btn-open-explication').addEventListener('click', function () {
+        modal.classList.remove('hidden');
+      });
+      document.getElementById('btn-close-modal').addEventListener('click', function () {
+        modal.classList.add('hidden');
+      });
+      tabBtnTable.addEventListener('click', function () {
+        tabBtnTable.classList.add('active');
+        tabBtnSections.classList.remove('active');
+        tabPanelTable.style.display = 'block';
+        tabPanelSections.style.display = 'none';
+      });
+      tabBtnSections.addEventListener('click', function () {
+        tabBtnSections.classList.add('active');
+        tabBtnTable.classList.remove('active');
+        tabPanelSections.style.display = 'block';
+        tabPanelTable.style.display = 'none';
+      });
+
+      document.getElementById('btn-close-tooltip').addEventListener('click', function () {
+        selectBuilding(null, false);
+      });
+      document.getElementById('btn-prev-building').addEventListener('click', function () {
+        var idx = 0;
+        if (selectedBuilding) {
+          for (var i = 0; i < BUILDINGS_DATA.length; i++) {
+            if (BUILDINGS_DATA[i].id === selectedBuilding.id) { idx = i; break; }
+          }
+        }
+        var nextIdx = (idx - 1 + BUILDINGS_DATA.length) % BUILDINGS_DATA.length;
+        selectBuilding(BUILDINGS_DATA[nextIdx], true);
+      });
+      document.getElementById('btn-next-building').addEventListener('click', function () {
+        var idx = -1;
+        if (selectedBuilding) {
+          for (var i = 0; i < BUILDINGS_DATA.length; i++) {
+            if (BUILDINGS_DATA[i].id === selectedBuilding.id) { idx = i; break; }
+          }
+        }
+        var nextIdx = (idx + 1) % BUILDINGS_DATA.length;
+        selectBuilding(BUILDINGS_DATA[nextIdx], true);
+      });
+
+      for (var q = 0; q < quickJumpBtns.length; q++) {
+        quickJumpBtns[q].addEventListener('click', function () {
+          var id = this.getAttribute('data-jump-id');
+          for (var i = 0; i < BUILDINGS_DATA.length; i++) {
+            if (BUILDINGS_DATA[i].id === id) {
+              selectBuilding(BUILDINGS_DATA[i], true);
+              break;
+            }
+          }
+        });
+      }
+
+      explicationSelect.addEventListener('change', function (e) {
+        var val = e.target.value;
+        if (!val) {
+          selectBuilding(null, false);
+        } else {
+          for (var i = 0; i < BUILDINGS_DATA.length; i++) {
+            if (BUILDINGS_DATA[i].id === val) {
+              selectBuilding(BUILDINGS_DATA[i], true);
+              break;
+            }
+          }
+        }
+      });
+
+      // Встроенный полнофункциональный OrbitControls (вращение 360°, зум, панорамирование, мультитач на смартфонах)
+      function createEmbeddedOrbitControls(THREE, camera, domElement) {
+        var target = new THREE.Vector3(8, 8, 12);
+        var minDistance = 26;
+        var maxDistance = 720;
+        var minPolarAngle = 0.02;
+        var maxPolarAngle = Math.PI / 2 - 0.03; // Защита от проваливания под землю
+        var enableDamping = true;
+        var dampingFactor = 0.08;
+
+        var spherical = new THREE.Spherical();
+        var sphericalDelta = new THREE.Spherical(0, 0, 0);
+        var panOffset = new THREE.Vector3();
+        var scale = 1;
+
+        var offset = new THREE.Vector3();
+        offset.copy(camera.position).sub(target);
+        spherical.setFromVector3(offset);
+
+        var state = 'NONE';
+        var rotateStart = new THREE.Vector2();
+        var rotateEnd = new THREE.Vector2();
+        var rotateDelta = new THREE.Vector2();
+        var panStart = new THREE.Vector2();
+        var panEnd = new THREE.Vector2();
+        var panDelta = new THREE.Vector2();
+        var dollyStart = 0;
+
+        var startListeners = [];
+        var changeListeners = [];
+
+        function emitStart() {
+          for (var i = 0; i < startListeners.length; i++) startListeners[i]();
+        }
+        function emitChange() {
+          for (var i = 0; i < changeListeners.length; i++) changeListeners[i]();
+        }
+
+        function panLeft(distance, objectMatrix) {
+          var v = new THREE.Vector3();
+          v.setFromMatrixColumn(objectMatrix, 0);
+          v.multiplyScalar(-distance);
+          panOffset.add(v);
+        }
+
+        function panUp(distance, objectMatrix) {
+          var v = new THREE.Vector3();
+          v.setFromMatrixColumn(objectMatrix, 0);
+          v.crossVectors(camera.up, v);
+          v.multiplyScalar(distance);
+          panOffset.add(v);
+        }
+
+        function pan(deltaX, deltaY) {
+          var el = domElement;
+          var pos = camera.position;
+          offset.copy(pos).sub(target);
+          var targetDistance = offset.length() * Math.tan(((camera.fov / 2) * Math.PI) / 180.0);
+          var clientH = el.clientHeight || window.innerHeight || 800;
+          panLeft((2 * deltaX * targetDistance) / clientH, camera.matrix);
+          panUp((2 * deltaY * targetDistance) / clientH, camera.matrix);
+        }
+
+        function update() {
+          offset.copy(camera.position).sub(target);
+          spherical.setFromVector3(offset);
+
+          if (enableDamping) {
+            spherical.theta += sphericalDelta.theta * dampingFactor;
+            spherical.phi += sphericalDelta.phi * dampingFactor;
+          } else {
+            spherical.theta += sphericalDelta.theta;
+            spherical.phi += sphericalDelta.phi;
+          }
+
+          spherical.phi = Math.max(minPolarAngle, Math.min(maxPolarAngle, spherical.phi));
+          spherical.makeSafe();
+          spherical.radius *= scale;
+          spherical.radius = Math.max(minDistance, Math.min(maxDistance, spherical.radius));
+
+          if (enableDamping) {
+            target.addScaledVector(panOffset, dampingFactor);
+          } else {
+            target.add(panOffset);
+          }
+
+          offset.setFromSpherical(spherical);
+          camera.position.copy(target).add(offset);
+          camera.lookAt(target);
+
+          if (enableDamping) {
+            sphericalDelta.theta *= 1 - dampingFactor;
+            sphericalDelta.phi *= 1 - dampingFactor;
+            panOffset.multiplyScalar(1 - dampingFactor);
+          } else {
+            sphericalDelta.set(0, 0, 0);
+            panOffset.set(0, 0, 0);
+          }
+
+          scale = 1;
+        }
+
+        domElement.addEventListener('contextmenu', function (e) {
+          e.preventDefault();
+        });
+
+        domElement.addEventListener('mousedown', function (e) {
+          emitStart();
+          if (e.button === 0 && !e.shiftKey) {
+            state = 'ROTATE';
+            rotateStart.set(e.clientX, e.clientY);
+          } else {
+            state = 'PAN';
+            panStart.set(e.clientX, e.clientY);
+          }
+        });
+
+        window.addEventListener('mousemove', function (e) {
+          if (state === 'NONE') return;
+          var clientH = domElement.clientHeight || window.innerHeight || 800;
+          if (state === 'ROTATE') {
+            rotateEnd.set(e.clientX, e.clientY);
+            rotateDelta.subVectors(rotateEnd, rotateStart);
+            sphericalDelta.theta -= (2 * Math.PI * rotateDelta.x) / clientH;
+            sphericalDelta.phi -= (2 * Math.PI * rotateDelta.y) / clientH;
+            rotateStart.copy(rotateEnd);
+            emitChange();
+          } else if (state === 'PAN') {
+            panEnd.set(e.clientX, e.clientY);
+            panDelta.subVectors(panEnd, panStart);
+            pan(panDelta.x, panDelta.y);
+            panStart.copy(panEnd);
+            emitChange();
+          }
+        });
+
+        window.addEventListener('mouseup', function () {
+          state = 'NONE';
+        });
+
+        domElement.addEventListener(
+          'wheel',
+          function (e) {
+            e.preventDefault();
+            emitStart();
+            if (e.deltaY < 0) {
+              scale /= 0.92;
+            } else if (e.deltaY > 0) {
+              scale *= 0.92;
+            }
+            emitChange();
+          },
+          { passive: false }
+        );
+
+        // Сенсорное управление для мобильных телефонов (1 палец — вращение, 2 пальца — зум + панорамирование)
+        domElement.addEventListener(
+          'touchstart',
+          function (e) {
+            emitStart();
+            if (e.touches.length === 1) {
+              state = 'TOUCH_ROTATE';
+              rotateStart.set(e.touches[0].pageX, e.touches[0].pageY);
+            } else if (e.touches.length >= 2) {
+              state = 'TOUCH_DOLLY_PAN';
+              var dx = e.touches[0].pageX - e.touches[1].pageX;
+              var dy = e.touches[0].pageY - e.touches[1].pageY;
+              dollyStart = Math.hypot(dx, dy);
+              panStart.set(
+                0.5 * (e.touches[0].pageX + e.touches[1].pageX),
+                0.5 * (e.touches[0].pageY + e.touches[1].pageY)
+              );
+            }
+          },
+          { passive: false }
+        );
+
+        domElement.addEventListener(
+          'touchmove',
+          function (e) {
+            if (state === 'NONE') return;
+            e.preventDefault();
+            var clientH = domElement.clientHeight || window.innerHeight || 800;
+            if (state === 'TOUCH_ROTATE' && e.touches.length === 1) {
+              rotateEnd.set(e.touches[0].pageX, e.touches[0].pageY);
+              rotateDelta.subVectors(rotateEnd, rotateStart);
+              sphericalDelta.theta -= (2 * Math.PI * rotateDelta.x) / clientH;
+              sphericalDelta.phi -= (2 * Math.PI * rotateDelta.y) / clientH;
+              rotateStart.copy(rotateEnd);
+              emitChange();
+            } else if (state === 'TOUCH_DOLLY_PAN' && e.touches.length >= 2) {
+              var dx = e.touches[0].pageX - e.touches[1].pageX;
+              var dy = e.touches[0].pageY - e.touches[1].pageY;
+              var dist = Math.hypot(dx, dy);
+              if (dollyStart > 0 && dist > 0) {
+                scale *= dollyStart / dist;
+                dollyStart = dist;
+              }
+              panEnd.set(
+                0.5 * (e.touches[0].pageX + e.touches[1].pageX),
+                0.5 * (e.touches[0].pageY + e.touches[1].pageY)
+              );
+              panDelta.subVectors(panEnd, panStart);
+              pan(panDelta.x, panDelta.y);
+              panStart.copy(panEnd);
+              emitChange();
+            }
+          },
+          { passive: false }
+        );
+
+        domElement.addEventListener('touchend', function () {
+          state = 'NONE';
+        });
+
+        return {
+          target: target,
+          get enableDamping() { return enableDamping; },
+          set enableDamping(v) { enableDamping = v; },
+          get dampingFactor() { return dampingFactor; },
+          set dampingFactor(v) { dampingFactor = v; },
+          get minPolarAngle() { return minPolarAngle; },
+          set minPolarAngle(v) { minPolarAngle = v; },
+          get maxPolarAngle() { return maxPolarAngle; },
+          set maxPolarAngle(v) { maxPolarAngle = v; },
+          get minDistance() { return minDistance; },
+          set minDistance(v) { minDistance = v; },
+          get maxDistance() { return maxDistance; },
+          set maxDistance(v) { maxDistance = v; },
+          update: update,
+          addEventListener: function (type, fn) {
+            if (type === 'start') startListeners.push(fn);
+            else if (type === 'change') changeListeners.push(fn);
+          }
+        };
+      }
+
+      function drawRoundedRectPath(ctx, x, y, w, h, r) {
+        var radius = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + w, y, x + w, y + h, radius);
+        ctx.arcTo(x + w, y + h, x, y + h, radius);
+        ctx.arcTo(x, y + h, x, y, radius);
+        ctx.arcTo(x, y, x + w, y, radius);
+        ctx.closePath();
+      }
+
+      function setTextureSRGB(THREE, tex) {
+        if ('colorSpace' in tex && THREE.SRGBColorSpace) {
+          tex.colorSpace = THREE.SRGBColorSpace;
+        } else if ('encoding' in tex && THREE.sRGBEncoding) {
+          tex.encoding = THREE.sRGBEncoding;
+        }
+      }
+
+      function initScene(THREE) {
+        var container = document.getElementById('canvas-container');
+        var renderer;
+        try {
+          renderer = new THREE.WebGLRenderer({ antialias: true });
+        } catch (err1) {
+          renderer = new THREE.WebGLRenderer({ antialias: false });
+        }
+
+        var isSoftwareGl = false;
+        try {
+          var gl = renderer.getContext();
+          var ext = gl.getExtension('WEBGL_debug_renderer_info');
+          var param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
+          var gpu = String(gl.getParameter(param) || '');
+          isSoftwareGl = /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+        } catch (err2) {
+          isSoftwareGl = false;
+        }
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+
+        if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) {
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+        } else if ('outputEncoding' in renderer && THREE.sRGBEncoding) {
+          renderer.outputEncoding = THREE.sRGBEncoding;
+        }
+
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        renderer.shadowMap.enabled = !isSoftwareGl;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+
+        var scene = new THREE.Scene();
+        var darkBg = 0x0d131c;
+        var clayBg = 0xe6e4dc;
+        scene.background = new THREE.Color(darkBg);
+        scene.fog = new THREE.FogExp2(darkBg, 0.0012);
+
+        var camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 1800);
+        var isMobileInit = window.innerWidth < 768;
+        camera.position.set(isMobileInit ? -215 : -175, isMobileInit ? 210 : 168, isMobileInit ? 265 : 215);
+
+        var controls = createEmbeddedOrbitControls(THREE, camera, renderer.domElement);
+        controls.enableDamping = !isSoftwareGl;
+        controls.dampingFactor = 0.08;
+        controls.target.set(8, 8, 12);
+        controls.update();
+
+        // Освещение архитектурного макета (Sun Light + Sky/Ground Hemisphere + Rim Light)
+        var hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 0.98);
+        hemiLight.position.set(0, 200, 0);
+        scene.add(hemiLight);
+
+        var sunLight = new THREE.DirectionalLight(0xfff4d6, 2.25);
+        sunLight.position.set(165, 245, 135);
+        sunLight.castShadow = !isSoftwareGl;
+        if (!isSoftwareGl) {
+          sunLight.shadow.mapSize.set(2048, 2048);
+          var d = 225;
+          sunLight.shadow.camera.left = -d;
+          sunLight.shadow.camera.right = d;
+          sunLight.shadow.camera.top = d;
+          sunLight.shadow.camera.bottom = -d;
+          sunLight.shadow.camera.near = 10;
+          sunLight.shadow.camera.far = 650;
+          sunLight.shadow.bias = -0.0005;
+        }
+        scene.add(sunLight);
+
+        var rimLight = new THREE.DirectionalLight(0x38bdf8, 0.65);
+        rimLight.position.set(-180, 110, -160);
+        scene.add(rimLight);
+
+        var currentExag = 1.6;
+        function calcY(x, z) {
+          return (getElevationAt(x, z) - 585.0) * currentExag;
+        }
+
+        function createTopoTexture(isClay) {
+          var canvas = document.createElement('canvas');
+          canvas.width = 1024;
+          canvas.height = 1024;
+          var ctx = canvas.getContext('2d');
+
+          ctx.fillStyle = isClay ? '#dedad0' : '#111a27';
+          ctx.fillRect(0, 0, 1024, 1024);
+
+          ctx.strokeStyle = isClay ? 'rgba(71, 85, 105, 0.16)' : 'rgba(56, 189, 248, 0.09)';
+          ctx.lineWidth = 1;
+          for (var i = 0; i <= 1024; i += 32) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 1024); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(1024, i); ctx.stroke();
+          }
+
+          ctx.strokeStyle = isClay ? 'rgba(15, 23, 42, 0.35)' : 'rgba(148, 163, 184, 0.32)';
+          ctx.lineWidth = 2;
+          for (var x = 128; x < 1024; x += 256) {
+            for (var y = 128; y < 1024; y += 256) {
+              ctx.beginPath();
+              ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y);
+              ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10);
+              ctx.stroke();
+            }
+          }
+
+          var tex = new THREE.CanvasTexture(canvas);
+          setTextureSRGB(THREE, tex);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(3, 3);
+          return tex;
+        }
+
+        var darkTopoTex = createTopoTexture(false);
+        var clayTopoTex = createTopoTexture(true);
+
+        var groundGeo = new THREE.PlaneGeometry(540, 540, 110, 110);
+        groundGeo.rotateX(-Math.PI / 2);
+        var groundMat = new THREE.MeshStandardMaterial({
+          map: darkTopoTex,
+          roughness: 0.88,
+          metalness: 0.06
+        });
+        var groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.receiveShadow = !isSoftwareGl;
+        scene.add(groundMesh);
+
+        function createSpriteBadge(text, bgHex, borderHex, textHex, scaleX, scaleY) {
+          var sx = scaleX || 13;
+          var sy = scaleY || 3.4;
+          var c = document.createElement('canvas');
+          c.width = 256;
+          c.height = 68;
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = bgHex;
+          ctx.strokeStyle = borderHex;
+          ctx.lineWidth = 3;
+          drawRoundedRectPath(ctx, 6, 6, 244, 56, 10);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = textHex;
+          ctx.font = '600 22px "IBM Plex Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, 128, 35);
+
+          var tex = new THREE.CanvasTexture(c);
+          setTextureSRGB(THREE, tex);
+          var mat = new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            depthWrite: false
+          });
+          var sprite = new THREE.Sprite(mat);
+          sprite.scale.set(sx, sy, 1);
+          return sprite;
+        }
+
+        var contoursGroup = new THREE.Group();
+        var platformsGroup = new THREE.Group();
+        var roadsGroup = new THREE.Group();
+        var ditchesGroup = new THREE.Group();
+        var forbiddenGroup = new THREE.Group();
+        var buildingsGroup = new THREE.Group();
+
+        scene.add(contoursGroup);
+        scene.add(platformsGroup);
+        scene.add(roadsGroup);
+        scene.add(ditchesGroup);
+        scene.add(forbiddenGroup);
+        scene.add(buildingsGroup);
+
+        var clickableMeshes = [];
+        var buildingGroupsMap = {};
+
+        function createTerrainRibbon(curve2d, steps, halfWidth, yOffset) {
+          var sampled = curve2d.getPoints(steps);
+          var positions = new Float32Array((steps + 1) * 2 * 3);
+          var indices = [];
+
+          for (var i = 0; i <= steps; i++) {
+            var curr = sampled[i];
+            var prev = sampled[Math.max(0, i - 1)];
+            var next = sampled[Math.min(steps, i + 1)];
+            var tx = next.x - prev.x;
+            var tz = next.z - prev.z;
+            var len = Math.hypot(tx, tz) || 1;
+            tx /= len;
+            tz /= len;
+            var nx = -tz;
+            var nz = tx;
+
+            var lx = curr.x + nx * halfWidth;
+            var lz = curr.z + nz * halfWidth;
+            var rx = curr.x - nx * halfWidth;
+            var rz = curr.z - nz * halfWidth;
+
+            var vIdx = i * 6;
+            positions[vIdx] = lx;
+            positions[vIdx + 1] = calcY(lx, lz) + yOffset;
+            positions[vIdx + 2] = lz;
+
+            positions[vIdx + 3] = rx;
+            positions[vIdx + 4] = calcY(rx, rz) + yOffset;
+            positions[vIdx + 5] = rz;
+
+            if (i < steps) {
+              var a = i * 2;
+              var b = i * 2 + 1;
+              var c = (i + 1) * 2;
+              var d = (i + 1) * 2 + 1;
+              indices.push(a, b, c, b, d, c);
+            }
+          }
+
+          var geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          geo.setIndex(indices);
+          geo.computeVertexNormals();
+          return { geo: geo, sampled: sampled };
+        }
+
+        function rebuildSceneGeometry() {
+          var pos = groundGeo.attributes.position;
+          for (var i = 0; i < pos.count; i++) {
+            var vx = pos.getX(i);
+            var vz = pos.getZ(i);
+            pos.setY(i, calcY(vx, vz));
+          }
+          pos.needsUpdate = true;
+          groundGeo.computeVertexNormals();
+
+          var groups = [contoursGroup, platformsGroup, roadsGroup, ditchesGroup, forbiddenGroup, buildingsGroup];
+          for (var g = 0; g < groups.length; g++) {
+            while (groups[g].children.length > 0) {
+              groups[g].remove(groups[g].children[0]);
+            }
+          }
+          clickableMeshes.length = 0;
+          buildingGroupsMap = {};
+
+          // А. Горизонтали рельефа (585 .. 596 м)
+          for (var elev = 585; elev <= 596; elev++) {
+            var pts = [];
+            for (var s = -230; s <= 230; s += 6) {
+              var swTarget = (elev - 591.2) / 5.2;
+              var x = -swTarget * 165 + s * 0.62;
+              var z = swTarget * 130 + s * 0.78;
+              if (Math.abs(x) <= 245 && Math.abs(z) <= 245) {
+                pts.push(new THREE.Vector3(x, calcY(x, z) + 0.16, z));
+              }
+            }
+            if (pts.length > 1) {
+              var lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+              var isMajor = elev % 2 === 0 || elev === 585 || elev === 595;
+              var lineMat = new THREE.LineBasicMaterial({
+                color: isMajor ? 0x38bdf8 : 0x64748b,
+                transparent: true,
+                opacity: isMajor ? 0.68 : 0.35
+              });
+              contoursGroup.add(new THREE.Line(lineGeo, lineMat));
+
+              if (elev % 2 === 1 || elev === 586 || elev === 596) {
+                var midPt = pts[Math.floor(pts.length * 0.22)];
+                if (midPt) {
+                  var cBadge = createSpriteBadge(
+                    elev + ' м',
+                    'rgba(15, 23, 42, 0.82)',
+                    'rgba(56, 189, 248, 0.5)',
+                    '#7dd3fc',
+                    7.5,
+                    2.0
+                  );
+                  cBadge.position.set(midPt.x, midPt.y + 1.4, midPt.z);
+                  contoursGroup.add(cBadge);
+                }
+              }
+            }
+          }
+
+          // Б. Площадки типа III (плита дорожная ПАГ-14)
+          var platMat = new THREE.MeshStandardMaterial({
+            color: 0x3b4654,
+            roughness: 0.82,
+            metalness: 0.12,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+          });
+          var platEdgeMat = new THREE.LineBasicMaterial({
+            color: 0x94a3b8,
+            transparent: true,
+            opacity: 0.55
+          });
+
+          for (var pIdx = 0; pIdx < PLATFORMS_DATA.length; pIdx++) {
+            var p = PLATFORMS_DATA[pIdx];
+            var pGeo = new THREE.PlaneGeometry(p.width, p.length, 12, 16);
+            pGeo.rotateX(-Math.PI / 2);
+            var posA = pGeo.attributes.position;
+            var cosR = Math.cos(p.rotationY);
+            var sinR = Math.sin(p.rotationY);
+
+            for (var pi = 0; pi < posA.count; pi++) {
+              var lx = posA.getX(pi);
+              var lz = posA.getZ(pi);
+              var wx = p.x + lx * cosR + lz * sinR;
+              var wz = p.z - lx * sinR + lz * cosR;
+              posA.setY(pi, calcY(wx, wz) + 0.26);
+            }
+            posA.needsUpdate = true;
+            pGeo.computeVertexNormals();
+
+            var pMesh = new THREE.Mesh(pGeo, platMat);
+            pMesh.position.set(p.x, 0, p.z);
+            pMesh.rotation.y = p.rotationY;
+            pMesh.receiveShadow = !isSoftwareGl;
+
+            var hw = p.width * 0.5;
+            var hl = p.length * 0.5;
+            var borderLocal = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl], [-hw, -hl]];
+            var borderPts = [];
+            for (var bi = 0; bi < borderLocal.length; bi++) {
+              var blx = borderLocal[bi][0];
+              var blz = borderLocal[bi][1];
+              var bwx = p.x + blx * cosR + blz * sinR;
+              var bwz = p.z - blx * sinR + blz * cosR;
+              borderPts.push(new THREE.Vector3(blx, calcY(bwx, bwz) + 0.32, blz));
+            }
+            pMesh.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(borderPts), platEdgeMat));
+            platformsGroup.add(pMesh);
+          }
+
+          // В. Автомобильные дороги (тип I) и водоотводные канавы (тип III)
+          var roadMat = new THREE.MeshStandardMaterial({
+            color: 0xd97706,
+            roughness: 0.72,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+          });
+          var roadShoulderMat = new THREE.MeshStandardMaterial({
+            color: 0x78350f,
+            roughness: 0.88,
+            metalness: 0.05,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+          });
+          var roadCenterLineMat = new THREE.LineDashedMaterial({
+            color: 0xfef08a,
+            dashSize: 2.5,
+            gapSize: 2.0,
+            transparent: true,
+            opacity: 0.85
+          });
+          var ditchMat = new THREE.MeshStandardMaterial({
+            color: 0x0ea5e9,
+            roughness: 0.4,
+            metalness: 0.2,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+          });
+
+          for (var rIdx = 0; rIdx < ROADS_DATA.length; rIdx++) {
+            var r = ROADS_DATA[rIdx];
+            var flatPts = [];
+            for (var rp = 0; rp < r.points.length; rp++) {
+              flatPts.push(new THREE.Vector3(r.points[rp][0], 0, r.points[rp][1]));
+            }
+            var curve = new THREE.CatmullRomCurve3(flatPts, Boolean(r.closed), 'catmullrom', 0.22);
+            var segs = Math.max(80, flatPts.length * 24);
+
+            if (r.type === 'road_type_1') {
+              var shObj = createTerrainRibbon(curve, segs, r.width * 0.64, 0.34);
+              roadsGroup.add(new THREE.Mesh(shObj.geo, roadShoulderMat));
+
+              var rdObj = createTerrainRibbon(curve, segs, r.width * 0.48, 0.42);
+              var roadMesh = new THREE.Mesh(rdObj.geo, roadMat);
+              roadMesh.receiveShadow = !isSoftwareGl;
+              roadsGroup.add(roadMesh);
+
+              var centerPts = [];
+              for (var sp = 0; sp < rdObj.sampled.length; sp++) {
+                var pt = rdObj.sampled[sp];
+                centerPts.push(new THREE.Vector3(pt.x, calcY(pt.x, pt.z) + 0.52, pt.z));
+              }
+              var centerLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(centerPts), roadCenterLineMat);
+              centerLine.computeLineDistances();
+              roadsGroup.add(centerLine);
+            } else {
+              var dtObj = createTerrainRibbon(curve, segs, r.width * 0.55, 0.38);
+              ditchesGroup.add(new THREE.Mesh(dtObj.geo, ditchMat));
+            }
+          }
+
+          // Водопропускные трубы на пересечениях (выпуск >= 2 м)
+          var culvertGeo = new THREE.CylinderGeometry(0.45, 0.45, 11.5, 12);
+          culvertGeo.rotateZ(Math.PI / 2);
+          var culvertMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.35, metalness: 0.7 });
+          var culvertCoords = [[-60, -116, 0.4], [-34, -68, -0.5], [4, -150, 0.2], [44, 118, -0.4]];
+          for (var ci = 0; ci < culvertCoords.length; ci++) {
+            var cx = culvertCoords[ci][0];
+            var cz = culvertCoords[ci][1];
+            var crot = culvertCoords[ci][2];
+            var pipe = new THREE.Mesh(culvertGeo, culvertMat);
+            pipe.position.set(cx, calcY(cx, cz) + 0.45, cz);
+            pipe.rotation.y = crot;
+            ditchesGroup.add(pipe);
+          }
+
+          // Г. Запретная (охранная) зона: красно-синяя граница, столбики и треугольники
+          var boundPts = [];
+          for (var bIdx = 0; bIdx < BOUNDARY_POLYGON.length; bIdx++) {
+            var ba = BOUNDARY_POLYGON[bIdx];
+            var bb = BOUNDARY_POLYGON[(bIdx + 1) % BOUNDARY_POLYGON.length];
+            for (var bs = 0; bs < 12; bs++) {
+              var bt = bs / 12;
+              var bx = ba.x + (bb.x - ba.x) * bt;
+              var bz = ba.z + (bb.z - ba.z) * bt;
+              boundPts.push(new THREE.Vector3(bx, calcY(bx, bz) + 1.15, bz));
+            }
+          }
+          boundPts.push(boundPts[0].clone());
+
+          var redLine = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(boundPts),
+            new THREE.LineDashedMaterial({ color: 0xef4444, dashSize: 4.0, gapSize: 2.0 })
+          );
+          redLine.computeLineDistances();
+          forbiddenGroup.add(redLine);
+
+          var bluePts = [];
+          for (var bp = 0; bp < boundPts.length; bp++) {
+            bluePts.push(new THREE.Vector3(boundPts[bp].x, boundPts[bp].y - 0.35, boundPts[bp].z));
+          }
+          forbiddenGroup.add(
+            new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints(bluePts),
+              new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.75 })
+            )
+          );
+
+          var postPositions = [];
+          var triPositions = [];
+          for (var fIdx = 0; fIdx < BOUNDARY_POLYGON.length; fIdx++) {
+            var fa = BOUNDARY_POLYGON[fIdx];
+            var fb = BOUNDARY_POLYGON[(fIdx + 1) % BOUNDARY_POLYGON.length];
+            var dist = Math.hypot(fb.x - fa.x, fb.z - fa.z);
+            var angle = Math.atan2(fb.x - fa.x, fb.z - fa.z);
+            var fSteps = Math.max(2, Math.floor(dist / 12));
+            for (var fs = 0; fs < fSteps; fs++) {
+              var ft = fs / fSteps;
+              var px = fa.x + (fb.x - fa.x) * ft;
+              var pz = fa.z + (fb.z - fa.z) * ft;
+              var py = calcY(px, pz);
+              postPositions.push(new THREE.Vector3(px, py + 1.1, pz));
+              if (fs % 2 === 1) {
+                triPositions.push({ pos: new THREE.Vector3(px, py + 2.35, pz), angle: angle });
+              }
+            }
+
+            if (fa.segmentLabel) {
+              var mx = (fa.x + fb.x) * 0.5;
+              var mz = (fa.z + fb.z) * 0.5;
+              var segBadge = createSpriteBadge(
+                fa.segmentLabel,
+                'rgba(127, 29, 29, 0.86)',
+                'rgba(248, 113, 113, 0.7)',
+                '#fecaca',
+                9.5,
+                2.3
+              );
+              segBadge.position.set(mx, calcY(mx, mz) + 3.8, mz);
+              forbiddenGroup.add(segBadge);
+            }
+          }
+
+          var dummy = new THREE.Object3D();
+          var postGeo = new THREE.CylinderGeometry(0.18, 0.18, 2.2, 6);
+          var postMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4, metalness: 0.65 });
+          var postInstanced = new THREE.InstancedMesh(postGeo, postMat, postPositions.length);
+          for (var po = 0; po < postPositions.length; po++) {
+            dummy.position.copy(postPositions[po]);
+            dummy.rotation.set(0, 0, 0);
+            dummy.updateMatrix();
+            postInstanced.setMatrixAt(po, dummy.matrix);
+          }
+          postInstanced.instanceMatrix.needsUpdate = true;
+          forbiddenGroup.add(postInstanced);
+
+          var triGeo = new THREE.ConeGeometry(0.62, 1.1, 3);
+          var triMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x7f1d1d, roughness: 0.35, metalness: 0.2 });
+          var triInstanced = new THREE.InstancedMesh(triGeo, triMat, triPositions.length);
+          for (var trI = 0; trI < triPositions.length; trI++) {
+            dummy.position.copy(triPositions[trI].pos);
+            dummy.rotation.set(Math.PI, triPositions[trI].angle, 0);
+            dummy.updateMatrix();
+            triInstanced.setMatrixAt(trI, dummy.matrix);
+          }
+          triInstanced.instanceMatrix.needsUpdate = true;
+          forbiddenGroup.add(triInstanced);
+
+          // Д. Архитектурные объёмы зданий и ангаров (BUILDINGS_DATA)
+          for (var bldIdx = 0; bldIdx < BUILDINGS_DATA.length; bldIdx++) {
+            var b = BUILDINGS_DATA[bldIdx];
+            var group = new THREE.Group();
+            var baseY = calcY(b.x, b.z) + 0.35;
+            group.position.set(b.x, baseY, b.z);
+            group.rotation.y = b.rotationY;
+
+            var plinthGeo = new THREE.BoxGeometry(b.width + 1.2, 2.6, b.length + 1.2);
+            var plinthMesh = new THREE.Mesh(
+              plinthGeo,
+              new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.85, metalness: 0.1 })
+            );
+            plinthMesh.position.y = -0.85;
+            plinthMesh.receiveShadow = !isSoftwareGl;
+            group.add(plinthMesh);
+
+            var hullMat = new THREE.MeshStandardMaterial({
+              color: b.colorHex,
+              roughness: 0.42,
+              metalness: 0.48
+            });
+            var hullGeo = new THREE.BoxGeometry(b.width, b.height, b.length);
+            var hullMesh = new THREE.Mesh(hullGeo, hullMat);
+            hullMesh.position.y = 0.45 + b.height * 0.5;
+            hullMesh.castShadow = !isSoftwareGl;
+            hullMesh.receiveShadow = !isSoftwareGl;
+            hullMesh.userData = { building: b };
+            group.add(hullMesh);
+            clickableMeshes.push(hullMesh);
+
+            hullMesh.add(
+              new THREE.LineSegments(
+                new THREE.EdgesGeometry(hullGeo),
+                new THREE.LineBasicMaterial({ color: b.accentHex })
+              )
+            );
+
+            if (b.roofType === 'gabled') {
+              var roofShape = new THREE.Shape();
+              var rhw = b.width * 0.54;
+              var rh = Math.min(2.3, b.width * 0.26);
+              roofShape.moveTo(-rhw, 0);
+              roofShape.lineTo(0, rh);
+              roofShape.lineTo(rhw, 0);
+              roofShape.closePath();
+
+              var roofDepth = b.length + 0.8;
+              var roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: roofDepth, bevelEnabled: false });
+              roofGeo.translate(0, 0.45 + b.height, -roofDepth * 0.5);
+              var roofMesh = new THREE.Mesh(
+                roofGeo,
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.68, metalness: 0.25 })
+              );
+              roofMesh.castShadow = !isSoftwareGl;
+              roofMesh.userData = { building: b };
+              group.add(roofMesh);
+              clickableMeshes.push(roofMesh);
+
+              roofMesh.add(
+                new THREE.LineSegments(
+                  new THREE.EdgesGeometry(roofGeo),
+                  new THREE.LineBasicMaterial({ color: b.accentHex, transparent: true, opacity: 0.65 })
+                )
+              );
+
+              var skylightCount = Math.max(2, Math.floor(b.length / 14));
+              var skyGeo = new THREE.BoxGeometry(b.width * 0.28, 0.65, 2.6);
+              var skyMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0c4a6e, roughness: 0.2, metalness: 0.8 });
+              for (var sk = 0; sk < skylightCount; sk++) {
+                var sz = -b.length * 0.35 + (sk / Math.max(1, skylightCount - 1)) * (b.length * 0.7);
+                var sky = new THREE.Mesh(skyGeo, skyMat);
+                sky.position.set(0, 0.45 + b.height + rh * 0.85, sz);
+                group.add(sky);
+              }
+
+              var canopyGeo = new THREE.BoxGeometry(b.width * 0.7, 0.25, 2.4);
+              var canopyMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.75 });
+              var dirs = [-1, 1];
+              for (var cd = 0; cd < dirs.length; cd++) {
+                var canopy = new THREE.Mesh(canopyGeo, canopyMat);
+                canopy.position.set(0, 0.45 + b.height * 0.58, dirs[cd] * (b.length * 0.5 + 1.1));
+                group.add(canopy);
+              }
+            } else if (b.roofType === 'tank') {
+              hullMesh.visible = false;
+              var tankRadius = b.width * 0.38;
+              var tankGeo = new THREE.CylinderGeometry(tankRadius, tankRadius, b.height, 24);
+              var tankMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.28, metalness: 0.72 });
+              var tankOffsets = [-b.length * 0.24, b.length * 0.24];
+              for (var to = 0; to < tankOffsets.length; to++) {
+                var tank = new THREE.Mesh(tankGeo, tankMat);
+                tank.position.set(0, 0.45 + b.height * 0.5, tankOffsets[to]);
+                tank.castShadow = !isSoftwareGl;
+                tank.userData = { building: b };
+                group.add(tank);
+                clickableMeshes.push(tank);
+                tank.add(
+                  new THREE.LineSegments(
+                    new THREE.EdgesGeometry(tankGeo, 25),
+                    new THREE.LineBasicMaterial({ color: b.accentHex })
+                  )
+                );
+              }
+              var bridge = new THREE.Mesh(
+                new THREE.BoxGeometry(1.4, 0.35, b.length * 0.65),
+                new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4, metalness: 0.6 })
+              );
+              bridge.position.set(0, 0.45 + b.height + 0.25, 0);
+              group.add(bridge);
+            } else if (b.roofType === 'open_pad') {
+              hullMesh.scale.y = 0.18;
+              hullMesh.position.y = 0.45 + b.height * 0.09;
+              var stackGeo = new THREE.BoxGeometry(3.2, 2.2, 3.2);
+              var stackMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55, metalness: 0.25 });
+              var rows = Math.max(2, Math.floor(b.length / 10));
+              for (var sr = 0; sr < rows; sr++) {
+                var srz = -b.length * 0.35 + (sr / Math.max(1, rows - 1)) * (b.length * 0.7);
+                var sCols = [-b.width * 0.22, b.width * 0.22];
+                for (var sc = 0; sc < sCols.length; sc++) {
+                  var stack = new THREE.Mesh(stackGeo, stackMat);
+                  stack.position.set(sCols[sc], 0.9 + 1.1, srz);
+                  stack.castShadow = !isSoftwareGl;
+                  stack.userData = { building: b };
+                  group.add(stack);
+                  clickableMeshes.push(stack);
+                }
+              }
+            }
+
+            if (b.hasBerm) {
+              var bermMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.92, metalness: 0.05 });
+              var bermEdgeMat = new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.6 });
+              var bw = b.width + 10;
+              var bl = b.length + 10;
+              var bh = 3.6;
+              var sideWallGeo = new THREE.BoxGeometry(2.8, bh, bl);
+              var bSides = [-bw * 0.5, bw * 0.5];
+              for (var bsi = 0; bsi < bSides.length; bsi++) {
+                var wall = new THREE.Mesh(sideWallGeo, bermMat);
+                wall.position.set(bSides[bsi], bh * 0.5, 0);
+                wall.add(new THREE.LineSegments(new THREE.EdgesGeometry(sideWallGeo), bermEdgeMat));
+                group.add(wall);
+              }
+              var backWallGeo = new THREE.BoxGeometry(bw + 2.8, bh, 2.8);
+              var backWall = new THREE.Mesh(backWallGeo, bermMat);
+              backWall.position.set(0, bh * 0.5, -bl * 0.5);
+              backWall.add(new THREE.LineSegments(new THREE.EdgesGeometry(backWallGeo), bermEdgeMat));
+              group.add(backWall);
+
+              var mastGeo = new THREE.CylinderGeometry(0.12, 0.2, b.height + 5.5, 6);
+              var mastMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 });
+              var mPositions = [[-bw * 0.5, -bl * 0.5], [bw * 0.5, -bl * 0.5]];
+              for (var mi = 0; mi < mPositions.length; mi++) {
+                var mast = new THREE.Mesh(mastGeo, mastMat);
+                mast.position.set(mPositions[mi][0], (b.height + 5.5) * 0.5, mPositions[mi][1]);
+                group.add(mast);
+              }
+            }
+
+            if (b.code === '2.13') {
+              var boom = new THREE.Mesh(
+                new THREE.BoxGeometry(6.5, 0.22, 0.22),
+                new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+              );
+              boom.position.set(b.width * 0.5 + 3.2, 1.3, 0);
+              group.add(boom);
+            }
+
+            var isLongWarehouse = b.category === 'warehouse_long';
+            var bBadge = createSpriteBadge(
+              b.blueprintTag || b.code,
+              isLongWarehouse ? 'rgba(245, 158, 11, 0.94)' : 'rgba(15, 23, 42, 0.92)',
+              isLongWarehouse ? '#fef08a' : '#38bdf8',
+              isLongWarehouse ? '#0f172a' : '#f8fafc',
+              isLongWarehouse ? 15.5 : 12.5,
+              isLongWarehouse ? 3.8 : 3.1
+            );
+            bBadge.position.set(0, b.height + 4.8, 0);
+            group.add(bBadge);
+
+            buildingsGroup.add(group);
+            buildingGroupsMap[b.id] = { group: group, hullMesh: hullMesh, building: b };
+          }
+        }
+
+        rebuildSceneGeometry();
+
+        var selectionFrameGroup = new THREE.Group();
+        selectionFrameGroup.visible = false;
+        selectionFrameGroup.add(
+          new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+            new THREE.LineBasicMaterial({ color: 0xfacc15 })
+          )
+        );
+        scene.add(selectionFrameGroup);
+
+        var activeCameraMode = 'iso';
+        var isTransitioning = false;
+        var targetCamPos = new THREE.Vector3(isMobileInit ? -215 : -175, isMobileInit ? 210 : 168, isMobileInit ? 265 : 215);
+        var targetLookAt = new THREE.Vector3(8, 8, 12);
+        var tourAngle = Math.atan2(camera.position.z - 12, camera.position.x - 8);
+        var lastTime = performance.now();
+
+        onSelectBuilding3D = function (b, focusCamera) {
+          var keys = Object.keys(buildingGroupsMap);
+          for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var entry = buildingGroupsMap[key];
+            var mat = entry.hullMesh.material;
+            if (b && key === b.id) {
+              mat.emissive.setHex(0x0284c7);
+              mat.emissiveIntensity = 0.55;
+              selectionFrameGroup.position.set(b.x, calcY(b.x, b.z) + 0.35 + (b.height + 2.5) * 0.5, b.z);
+              selectionFrameGroup.rotation.y = b.rotationY;
+              selectionFrameGroup.scale.set(b.width + 2.8, b.height + 2.5, b.length + 2.8);
+              selectionFrameGroup.visible = true;
+
+              if (focusCamera && activeCameraMode !== 'top') {
+                targetLookAt.set(b.x, calcY(b.x, b.z) + b.height * 0.5, b.z);
+                targetCamPos.set(b.x - 75, calcY(b.x, b.z) + 62, b.z + 85);
+                isTransitioning = true;
+              }
+            } else {
+              mat.emissive.setHex(0x000000);
+              mat.emissiveIntensity = 0;
+            }
+          }
+
+          if (!b) {
+            selectionFrameGroup.visible = false;
+          }
+          renderer.render(scene, camera);
+        };
+
+        selectBuilding(BUILDINGS_DATA[0], false);
+
+        // Клик и тап по 3D-зданиям (Raycaster)
+        var raycaster = new THREE.Raycaster();
+        var pointer = new THREE.Vector2();
+        var downX = 0;
+        var downY = 0;
+
+        renderer.domElement.addEventListener('pointerdown', function (e) {
+          downX = e.clientX;
+          downY = e.clientY;
+        });
+
+        renderer.domElement.addEventListener('pointerup', function (e) {
+          if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+          var rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+          raycaster.setFromCamera(pointer, camera);
+          var hits = raycaster.intersectObjects(clickableMeshes, false);
+          if (hits.length > 0 && hits[0].object.userData.building) {
+            selectBuilding(hits[0].object.userData.building, false);
+          }
+        });
+
+        var btnCamIso = document.getElementById('btn-cam-iso');
+        var btnCamTop = document.getElementById('btn-cam-top');
+        var btnCamTour = document.getElementById('btn-cam-tour');
+
+        function setCameraMode(mode) {
+          activeCameraMode = mode;
+          appRoot.setAttribute('data-camera-mode', mode);
+          btnCamIso.classList.toggle('active', mode === 'iso');
+          btnCamTop.classList.toggle('active', mode === 'top');
+          btnCamTour.classList.toggle('tour-active', mode === 'tour');
+
+          var isMob = window.innerWidth < 768;
+          if (mode === 'top') {
+            targetCamPos.set(8, isMob ? 460 : 395, 12.01);
+            targetLookAt.set(8, 6, 12);
+            isTransitioning = true;
+          } else if (mode === 'iso') {
+            targetCamPos.set(isMob ? -215 : -175, isMob ? 210 : 168, isMob ? 265 : 215);
+            targetLookAt.set(8, 8, 12);
+            isTransitioning = true;
+          } else if (mode === 'tour') {
+            isTransitioning = false;
+            tourAngle = Math.atan2(camera.position.z - 12, camera.position.x - 8);
+          }
+          lastTime = performance.now();
+        }
+
+        btnCamIso.addEventListener('click', function () { setCameraMode('iso'); });
+        btnCamTop.addEventListener('click', function () { setCameraMode('top'); });
+        btnCamTour.addEventListener('click', function () { setCameraMode('tour'); });
+
+        controls.addEventListener('start', function () {
+          isTransitioning = false;
+          if (activeCameraMode === 'tour') {
+            activeCameraMode = 'iso';
+            appRoot.setAttribute('data-camera-mode', 'iso');
+            btnCamTour.classList.remove('tour-active');
+            btnCamIso.classList.add('active');
+          }
+        });
+
+        var isClayStyle = false;
+        var btnStyleMode = document.getElementById('btn-style-mode');
+        btnStyleMode.addEventListener('click', function () {
+          isClayStyle = !isClayStyle;
+          var col = isClayStyle ? clayBg : darkBg;
+          appRoot.setAttribute('data-visual-style', isClayStyle ? 'arch_clay' : 'tech_dark');
+          scene.background = new THREE.Color(col);
+          scene.fog = new THREE.FogExp2(col, 0.0012);
+          groundMat.map = isClayStyle ? clayTopoTex : darkTopoTex;
+          groundMat.needsUpdate = true;
+          hemiLight.groundColor.setHex(isClayStyle ? 0x94a3b8 : 0x1e293b);
+          hemiLight.intensity = isClayStyle ? 1.18 : 0.98;
+          btnStyleMode.textContent = isClayStyle ? 'Стиль: Clay Макет' : 'Стиль: Tech ГИС';
+          renderer.render(scene, camera);
+        });
+
+        var btnContours = document.getElementById('btn-layer-contours');
+        btnContours.addEventListener('click', function () {
+          contoursGroup.visible = !contoursGroup.visible;
+          btnContours.classList.toggle('layer-on', contoursGroup.visible);
+          renderer.render(scene, camera);
+        });
+
+        var btnDitches = document.getElementById('btn-layer-ditches');
+        btnDitches.addEventListener('click', function () {
+          ditchesGroup.visible = !ditchesGroup.visible;
+          btnDitches.classList.toggle('layer-on', ditchesGroup.visible);
+          renderer.render(scene, camera);
+        });
+
+        var btnForbidden = document.getElementById('btn-layer-forbidden');
+        btnForbidden.addEventListener('click', function () {
+          forbiddenGroup.visible = !forbiddenGroup.visible;
+          btnForbidden.classList.toggle('danger-on', forbiddenGroup.visible);
+          renderer.render(scene, camera);
+        });
+
+        var btnTerrainScale = document.getElementById('btn-terrain-scale');
+        btnTerrainScale.addEventListener('click', function () {
+          if (currentExag < 1.5) currentExag = 1.6;
+          else if (currentExag < 2.2) currentExag = 2.6;
+          else currentExag = 1.0;
+          btnTerrainScale.textContent = 'Рельеф Y: ' + currentExag.toFixed(1) + '×';
+          rebuildSceneGeometry();
+          if (selectedBuilding) onSelectBuilding3D(selectedBuilding, false);
+          else renderer.render(scene, camera);
+        });
+
+        window.addEventListener('resize', function () {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          renderer.render(scene, camera);
+        });
+
+        // Плавный цикл рендеринга
+        function animate(now) {
+          requestAnimationFrame(animate);
+          var dt = Math.min(Math.max((now - lastTime) / 1000, 0.001), 0.1);
+          lastTime = now;
+
+          if (activeCameraMode === 'tour') {
+            tourAngle += dt * 0.28;
+            var radius = window.innerWidth < 768 ? 295 : 255;
+            camera.position.set(8 + Math.cos(tourAngle) * radius, 145, 12 + Math.sin(tourAngle) * radius);
+            controls.target.set(8, 8, 12);
+          } else if (isTransitioning) {
+            var alpha = 1 - Math.exp(-6.5 * dt);
+            camera.position.lerp(targetCamPos, alpha);
+            controls.target.lerp(targetLookAt, alpha);
+            if (camera.position.distanceTo(targetCamPos) < 1.0 && controls.target.distanceTo(targetLookAt) < 1.0) {
+              camera.position.copy(targetCamPos);
+              controls.target.copy(targetLookAt);
+              isTransitioning = false;
+            }
+          }
+
+          controls.update();
+          renderer.render(scene, camera);
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      if (window.THREE) {
+        initScene(window.THREE);
+      } else {
+        window.addEventListener('load', function () {
+          if (window.THREE) initScene(window.THREE);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
